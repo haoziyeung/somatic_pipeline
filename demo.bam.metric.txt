@@ -1,0 +1,2 @@
+sample	bam	total_reads	total_base(bp)	total_base(M)	total_base(G)	dup_reads	dup_ratio	map_ratio	average_depth_on_target	target_size	gt_1x_on_target	gt_10x_on_target	gt_20x_on_target	gt_30x_on_target	gt_100x_on_target	gt_300x_on_target	on_target_reads	on_target_reads_ratio
+Illumina_pt2_B1700	Illumina_pt2_B1700.bam	116883367	17532505050	17532.50505	17.53250505	33896559	0.290003273091885	99.87%	2156.67557257659	1763632	0.999063296651456	0.996985198726265	0.995816587587433	0.994791997423499	0.990712915165976	0.980020208297423	91477370	0.783
