@@ -1,0 +1,9 @@
+bio_marker	left_gene	left_chr	left_breakpoint	right_gene	right_chr	right_breakpoint	sv_type	sv_desc	sv_maf
+TPM3-ROS1	TPM3	chr1	154142760	ROS1	chr6	117642092	BND	A breakend record is identified with the tag BND ref:https://samtools.github.io/hts-specs/VCFv4.2.pdf	14.242%
+TPM3-ROS1	TPM3	chr1	154142763	ROS1	chr6	117642093	BND	A breakend record is identified with the tag BND ref:https://samtools.github.io/hts-specs/VCFv4.2.pdf	20.840%
+ROS1-TPM3	ROS1	chr6	117642092	TPM3	chr1	154142760	BND	A breakend record is identified with the tag BND ref:https://samtools.github.io/hts-specs/VCFv4.2.pdf	13.521%
+ROS1-TPM3	ROS1	chr6	117642093	TPM3	chr1	154142763	BND	A breakend record is identified with the tag BND ref:https://samtools.github.io/hts-specs/VCFv4.2.pdf	17.491%
+ABL1-BCR	ABL1	chr9	133729677	BCR	chr22	23634672	BND	A breakend record is identified with the tag BND ref:https://samtools.github.io/hts-specs/VCFv4.2.pdf	84.050%
+ABL1-BCR	ABL1	chr9	133729678	BCR	chr22	23634671	BND	A breakend record is identified with the tag BND ref:https://samtools.github.io/hts-specs/VCFv4.2.pdf	10.216%
+BCR-ABL1	BCR	chr22	23634671	ABL1	chr9	133729678	BND	A breakend record is identified with the tag BND ref:https://samtools.github.io/hts-specs/VCFv4.2.pdf	3.605%
+BCR-ABL1	BCR	chr22	23634672	ABL1	chr9	133729677	BND	A breakend record is identified with the tag BND ref:https://samtools.github.io/hts-specs/VCFv4.2.pdf	62.541%
