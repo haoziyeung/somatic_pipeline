@@ -4,7 +4,8 @@ use warnings;
 use Data::Dumper;
 use feature 'say';
 use lib '/home/yanghao/perl5/lib/perl5/';
-use List::MoreUtils 'uniq';
+#use List::MoreUtils ':all';
+use List::Util qw/uniq sum/;
 use File::Basename;
 
 my $base = dirname $0;
@@ -97,6 +98,7 @@ while(<F>){
 	my @a = split /\t/;
 
 	my ($sv_type) = $a[7] =~ m|SVTYPE=([^;]+)|;
+	next if $sv_type eq 'INS';
 	my ($sv_end) = $a[7] =~ m|END=([^;]+)|;
 
 	my @k = split /:/,$a[-3];
@@ -117,7 +119,7 @@ while(<F>){
 	}
 
 	next unless exists $normal_chrom{$left_chr} && exists $normal_chrom{$right_chr};
-	my $sv_ratio = sprintf "%.3f%%",( (split /,/,$info{'AD'})[1] / (split /,/,$info{'AD'})[0] )* 100;
+	my $sv_ratio = sprintf "%.3f%%",( (split /,/,$info{'AD'})[1] / sum(split /,/,$info{'AD'}) )* 100;
 
 	#左基因注释
 	my $left_gene;
