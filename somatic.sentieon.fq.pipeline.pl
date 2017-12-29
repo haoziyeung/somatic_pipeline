@@ -12,7 +12,7 @@ use File::Basename;
 my $base = dirname $0;
 use feature 'say';
 
-my ($tumor,$normal,$t1,$t2,$n1,$n2,$bed,$part);
+my ($tumor,$normal,$t1,$t2,$n1,$n2,$bed,$part,$trim);
 my $eof = <<EOF;
 
 ----------------------------------------------------------
@@ -34,6 +34,9 @@ my $eof = <<EOF;
 默认提交到cn-medium分区，如果没有资源了，你可以指定作业提交到cn-fast，如下所示：
 	perl $0 -t <tumor name> -t1 <tumor R1> -t2 <tumor R2> -n <normal name> -n1 <normal R1> -n2 <normal R2> -b <interval.bed> -part cn-fast
 
+如果你想在比对前，对fastq文件做一个trimming，可以这样：
+	perl $0 -t <tumor name> -t1 <tumor R1> -t2 <tumor R2> -n <normal name> -n1 <normal R1> -n2 <normal R2> -b <interval.bed> -trim 1
+
 Last Updated:2017/12/25
 
 如果使用过程中发生任何问题，请联系yanghao\@eulertechnology.com
@@ -53,6 +56,7 @@ GetOptions(
 
     'b=s' => \$bed,
     'part=s' => \$part,
+    'trim=s' => \$trim,
 );
 
 unless($tumor && $t1 && -e $t1 && $t2 && -e $t2 && $normal && $n1 && -e $n1 && $n2 && -e $n2){
@@ -75,11 +79,13 @@ my $known_Mills_indels = '/gpfs/users/yanghao/database/gatk_bundle/Mills_and_100
 my $known_1000G_indels = '/gpfs/users/yanghao/database/gatk_bundle/1000G_phase1.indels.b37.vcf.gz';
 my $dbsnp = '/gpfs/users/yanghao/database/ncbi/dbsnp/All_20170710.vcf.gz';
 
+my ($tumor_head,$normal_head);
 # ******************************************************************************
-# TUMOR fastq alignment,indel realignment,base recalibration
+# fastq trim(OPTIONAL)
 # ******************************************************************************
-open F,">$path/somatic.$tumor.align.sh";
-print F <<EOF;
+if($trim){
+	open F,">$path/somatic.$tumor.trim.sh";
+	print F <<EOF;
 #!/bin/bash
 
 #SBATCH -p $part
@@ -87,17 +93,58 @@ print F <<EOF;
 #SBATCH --no-requeue
 #SBATCH -A $account
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=15
+#SBATCH --cpus-per-task=1
 
 cd $path
 
-. /home/yanghao/.bashrc
+/gpfs/bin/common/cutadapt -m 80 -q10,10 -o ${tumor}_R1.cl.fq.gz -p ${tumor}_R2.cl.fq.gz -a AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC -A AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTAGATCTCGGTGGTCGCCGTATCATT $t1 $t2
+
+EOF
+	close F;
+	chomp(my $tumor_trim= `sbatch $path/somatic.$tumor.trim.sh`);
+	$tumor_trim =~ s/Submitted batch job //g;
+
+    open F,">$path/somatic.$normal.trim.sh";
+    print F <<EOF;
+#!/bin/bash
+
+#SBATCH -p $part
+#SBATCH -N 1
+#SBATCH --no-requeue
+#SBATCH -A $account
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=1
+
+cd $path
+
+/gpfs/bin/common/cutadapt -m 80 -q10,10 -o ${normal}_R1.cl.fq.gz -p ${normal}_R2.cl.fq.gz -a AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC -A AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTAGATCTCGGTGGTCGCCGTATCATT $n1 $n2
+
+EOF
+	close F;
+	chomp(my $normal_trim= `sbatch $path/somatic.$normal.trim.sh`);
+	$normal_trim =~ s/Submitted batch job //g;
+	
+	$tumor_head = "#!/bin/bash\n#SBATCH -p $part\n#SBATCH -N 1\n#SBATCH --no-requeue\n#SBATCH -A $account\n#SBATCH --ntasks-per-node=1\n#SBATCH --cpus-per-task=15\n#SBATCH --dependency=$tumor_trim\n";
+	$normal_head = "#!/bin/bash\n#SBATCH -p $part\n#SBATCH -N 1\n#SBATCH --no-requeue\n#SBATCH -A $account\n#SBATCH --ntasks-per-node=1\n#SBATCH --cpus-per-task=15\n#SBATCH --dependency=$normal_trim\n";
+}else{
+	$tumor_head = "#!/bin/bash\n#SBATCH -p $part\n#SBATCH -N 1\n#SBATCH --no-requeue\n#SBATCH -A $account\n#SBATCH --ntasks-per-node=1\n#SBATCH --cpus-per-task=15\n";
+	$normal_head = "#!/bin/bash\n#SBATCH -p $part\n#SBATCH -N 1\n#SBATCH --no-requeue\n#SBATCH -A $account\n#SBATCH --ntasks-per-node=1\n#SBATCH --cpus-per-task=15\n";
+}
+
+# ******************************************************************************
+# TUMOR fastq alignment,indel realignment,base recalibration
+# ******************************************************************************
+open F,">$path/somatic.$tumor.align.sh";
+print F <<EOF;
+$tumor_head
+
+cd $path
 
 speedseq align -t $nt -o $tumor -R \"\@RG:\\tID:$tumor\\tSM:$tumor\\tPL:ILLUMINA\\tCN:Euler\\tLB:test_lb\\tPU:test_pu\" $ref $t1 $t2
 
 sambamba flagstat -t $nt $tumor.bam > $tumor.bam.flagstat
 
-/home/yanghao/anaconda2/pkgs/mosdepth-0.2.0-htslib1.6_0/bin/mosdepth -t 4 -b $bed -n -T1,10,20,30,100,300 $tumor.stat $tumor.bam
+LD_LIBRARY_PATH=/gpfs/bin/htslib/ /gpfs/gemini/anaconda/pkgs/mosdepth-0.2.0-htslib1.6_0/bin/mosdepth -t 4 -b $bed -n -T1,10,20,30,100,300 $tumor.stat $tumor.bam
 
 $sentieon driver -r $ref -t $nt -i $tumor.bam --algo Realigner -k $known_Mills_indels -k $known_1000G_indels $tumor.realigned.bam
 
@@ -113,24 +160,15 @@ $tumor_aln =~ s/Submitted batch job //g;
 # ******************************************************************************
 open F,">$path/somatic.$normal.align.sh";
 print F <<EOF;
-#!/bin/bash
-
-#SBATCH -p $part
-#SBATCH -N 1
-#SBATCH --no-requeue
-#SBATCH -A $account
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=15
+$normal_head
 
 cd $path
-
-. /home/yanghao/.bashrc
 
 speedseq align -t \`nproc\` -o $normal -R \"\@RG:\\tID:$normal\\tSM:$normal\\tPL:ILLUMINA\\tCN:Euler\\tLB:test_lb\\tPU:test_pu\" $ref $n1 $n2
 
 sambamba flagstat -t\`nproc\` $normal.bam > $normal.bam.flagstat
 
-/home/yanghao/anaconda2/pkgs/mosdepth-0.2.0-htslib1.6_0/bin/mosdepth -t 4 -b $bed -n -T1,10,20,30,100,300 $normal.stat $normal.bam
+LD_LIBRARY_PATH=/gpfs/bin/htslib/ /gpfs/gemini/anaconda/pkgs/mosdepth-0.2.0-htslib1.6_0/bin/mosdepth -t 4 -b $bed -n -T1,10,20,30,100,300 $normal.stat $normal.bam
 
 $sentieon driver -r $ref -t $nt -i $normal.bam --algo Realigner -k $known_Mills_indels -k $known_1000G_indels $normal.realigned.bam
 
@@ -168,7 +206,7 @@ zcat $tumor-$normal.vcf.gz | perl -lne'if(/^#/){print}else{print unless /SVTYPE/
 
 /gpfs/users/yanghao/software/annovar/table_annovar.pl $tumor-$normal.snp_indel.vcf /gpfs/users/yanghao/database/annotation/humandb/ -buildver hg19 -protocol refGene,ensGene,cytoBand,esp6500siv2_all,1000g2015aug_all,avsnp150,gnomad_genome,gnomad_exome,dbnsfp33a,cosmic70 -operation g,g,r,f,f,f,f,f,f,f -argument \"-splicing_threshold 5 --hgvs,,,,,,,,,\" -vcfinput -nastring . --thread 6 --maxgenethread 6 -polish
 
-perl $base/parse_hgvs.pl $tumor-$normal.snp_indel.vcf.hg19_multianno.txt > $tumor-$normal.snp_indel.xls
+perl $base/parse_tsv.pl $tumor-$normal.snp_indel.vcf.hg19_multianno.txt > $tumor-$normal.snp_indel.xls
 
 perl $base/sv.annotate.pl $tumor-$normal.sv.vcf $tumor-$normal.sv.txt
 
