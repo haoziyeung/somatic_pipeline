@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Data::Dumper;
 use feature 'say';
+use lib '/home/yanghao/perl5/lib/perl5/';
 use List::MoreUtils 'uniq';
 use File::Basename;
 
@@ -64,7 +65,7 @@ my %normal_chrom = (
 );
 
 my (%refseq,%chr_count);
-open F,"$base/hg19_refGene.txt";
+open F,"/gpfs/users/yanghao/database/annotation/humandb//hg19_refGene.txt";
 while(<F>){
 	chomp;
 	my @a = split /\t/;
